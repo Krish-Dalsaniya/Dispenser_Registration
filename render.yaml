@@ -3,7 +3,7 @@ services:
     name: dispenser-registration
     runtime: node
     plan: free
-    buildCommand: npm install
+    buildCommand: npm install && node init_db.js
     startCommand: npm start
     envVars:
       - key: NODE_ENV

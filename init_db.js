@@ -12,19 +12,10 @@ const client = new Client({
 });
 
 const schema = `
-  -- Drop existing tables in reverse dependency order
-  DROP TABLE IF EXISTS device_registration CASCADE;
-  DROP TABLE IF EXISTS bundle_type_map CASCADE;
-  DROP TABLE IF EXISTS bundle_feature_map CASCADE;
-  DROP TABLE IF EXISTS firmware_bundle CASCADE;
-  DROP TABLE IF EXISTS customer CASCADE;
-  DROP TABLE IF EXISTS firmware_feature CASCADE;
-  DROP TABLE IF EXISTS firmware_type CASCADE;
-
   -- ===============================
   -- 1. FIRMWARE TYPE
   -- ===============================
-  CREATE TABLE firmware_type (
+  CREATE TABLE IF NOT EXISTS firmware_type (
       type_id SERIAL PRIMARY KEY,
       type_name VARCHAR(100) NOT NULL,
       description TEXT
@@ -33,7 +24,7 @@ const schema = `
   -- ===============================
   -- 2. FIRMWARE FEATURE
   -- ===============================
-  CREATE TABLE firmware_feature (
+  CREATE TABLE IF NOT EXISTS firmware_feature (
       feature_id SERIAL PRIMARY KEY,
       feature_name VARCHAR(100) NOT NULL,
       category VARCHAR(100)
@@ -42,7 +33,7 @@ const schema = `
   -- ===============================
   -- 3. FIRMWARE BUNDLE (CORE)
   -- ===============================
-  CREATE TABLE firmware_bundle (
+  CREATE TABLE IF NOT EXISTS firmware_bundle (
       firmware_id SERIAL PRIMARY KEY,
       combination_hash VARCHAR(255) UNIQUE NOT NULL,
       version_string VARCHAR(50),
@@ -53,7 +44,7 @@ const schema = `
   -- ===============================
   -- 4. BUNDLE <-> FEATURE MAP
   -- ===============================
-  CREATE TABLE bundle_feature_map (
+  CREATE TABLE IF NOT EXISTS bundle_feature_map (
       firmware_id INT NOT NULL,
       feature_id INT NOT NULL,
       PRIMARY KEY (firmware_id, feature_id),
@@ -64,7 +55,7 @@ const schema = `
   -- ===============================
   -- 5. BUNDLE <-> TYPE MAP
   -- ===============================
-  CREATE TABLE bundle_type_map (
+  CREATE TABLE IF NOT EXISTS bundle_type_map (
       firmware_id INT NOT NULL,
       type_id INT NOT NULL,
       PRIMARY KEY (firmware_id, type_id),
@@ -75,7 +66,7 @@ const schema = `
   -- ===============================
   -- 6. CUSTOMER
   -- ===============================
-  CREATE TABLE customer (
+  CREATE TABLE IF NOT EXISTS customer (
       customer_id SERIAL PRIMARY KEY,
       customer_name VARCHAR(150) NOT NULL
   );
@@ -83,7 +74,7 @@ const schema = `
   -- ===============================
   -- 7. DEVICE REGISTRATION (MAIN)
   -- ===============================
-  CREATE TABLE device_registration (
+  CREATE TABLE IF NOT EXISTS device_registration (
       dispenser_id SERIAL PRIMARY KEY,
       firmware_id INT NOT NULL,
       customer_id INT NOT NULL,
@@ -104,34 +95,27 @@ const schema = `
   -- ===============================
   -- 8. INDEXES (PERFORMANCE)
   -- ===============================
-  CREATE INDEX idx_bundle_hash ON firmware_bundle(combination_hash);
-  CREATE INDEX idx_device_firmware ON device_registration(firmware_id);
-  CREATE INDEX idx_device_customer ON device_registration(customer_id);
+  CREATE INDEX IF NOT EXISTS idx_bundle_hash ON firmware_bundle(combination_hash);
+  CREATE INDEX IF NOT EXISTS idx_device_firmware ON device_registration(firmware_id);
+  CREATE INDEX IF NOT EXISTS idx_device_customer ON device_registration(customer_id);
 
   -- ===============================
-  -- SEED DATA
+  -- SEED DATA (Only if tables are empty)
   -- ===============================
 
-  -- Firmware Types
-  INSERT INTO firmware_type (type_name, description) VALUES
-    ('GSM', 'GSM based firmware module'),
-    ('Motherboard', 'Main motherboard firmware'),
-    ('Display', 'Display controller firmware');
+  -- Using subqueries to ensure we only seed if tables are empty
+  INSERT INTO firmware_type (type_name, description) 
+  SELECT 'GSM', 'GSM based firmware module' WHERE NOT EXISTS (SELECT 1 FROM firmware_type);
+  INSERT INTO firmware_type (type_name, description) 
+  SELECT 'Motherboard', 'Main motherboard firmware' WHERE NOT EXISTS (SELECT 1 FROM firmware_type WHERE type_name='Motherboard');
+  INSERT INTO firmware_type (type_name, description) 
+  SELECT 'Display', 'Display controller firmware' WHERE NOT EXISTS (SELECT 1 FROM firmware_type WHERE type_name='Display');
 
   -- Firmware Features
-  INSERT INTO firmware_feature (feature_name, category) VALUES
-    ('WiFi', 'Connectivity'),
-    ('BLE', 'Connectivity'),
-    ('Ethernet', 'Connectivity'),
-    ('GPS', 'Location'),
-    ('OTA Update', 'System'),
-    ('Data Logging', 'System');
+  INSERT INTO firmware_feature (feature_name, category) 
+  SELECT 'WiFi', 'Connectivity' WHERE NOT EXISTS (SELECT 1 FROM firmware_feature);
 
   -- Firmware Bundles
-  INSERT INTO firmware_bundle (combination_hash, version_string, is_iot) VALUES
-    ('1_2', 'v1.0.0', TRUE),
-    ('1_2_3', 'v1.1.0', TRUE),
-    ('1_4_5', 'v2.0.0', TRUE),
     ('BASIC', 'v0.9.0-STD', FALSE);
 
   -- Bundle-Feature Mappings

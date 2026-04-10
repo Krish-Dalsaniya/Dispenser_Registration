@@ -36,13 +36,28 @@ app.get('/', (req, res) => {
 // Admin Route to initialize DB for free
 app.get('/api/admin/setup-db', async (req, res) => {
   try {
-    console.log('[Admin] Starting DB initialization...');
-    await initDB();
+    console.log('[Admin] Starting DB initialization using main pool...');
+    // We import schema directly from init_db and run it on our verified pool
+    const { schema } = require('./init_db');
+    await db.query(schema);
     res.send('✅ Database initialized successfully! You can now <a href="/">go to the homepage</a>.');
   } catch (err) {
     console.error('❌ [Admin] DB Init Failed:', err.message);
-    res.status(500).send(`❌ DB Init Failed: ${err.message}`);
+    res.status(500).send(`
+      <div style="font-family: sans-serif; padding: 20px;">
+        <h1 style="color: #e74c3c;">❌ Database Initialization Failed</h1>
+        <p><strong>Error Message:</strong> ${err.message}</p>
+        <p>This error usually means the connection to PostgreSQL failed or the schema has an error.</p>
+        <hr>
+        <p>Check your Render Logs for more details.</p>
+      </div>
+    `);
   }
+});
+
+// Simple health check for monitoring
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date() });
 });
 
 // ============================================================

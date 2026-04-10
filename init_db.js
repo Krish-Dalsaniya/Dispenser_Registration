@@ -1,20 +1,6 @@
 const { Client } = require('pg');
 require('dotenv').config();
 
-// We move configuration to a helper to reuse it
-function getClientConfig() {
-  const isProduction = process.env.NODE_ENV === 'production';
-  return {
-    connectionString: process.env.DATABASE_URL,
-    host: process.env.DB_HOST || 'localhost',
-    port: process.env.DB_PORT || 5432,
-    user: process.env.DB_USER || 'postgres',
-    password: String(process.env.DB_PASS || 'root'),
-    database: process.env.DB_NAME || 'dispenser_registration',
-    ssl: isProduction ? { rejectUnauthorized: false } : false,
-  };
-}
-
 const schema = `
   -- 1. FIRMWARE TYPE
   CREATE TABLE IF NOT EXISTS firmware_type (
@@ -98,28 +84,28 @@ const schema = `
   SELECT 'Default Customer' WHERE NOT EXISTS (SELECT 1 FROM customer WHERE customer_name='Default Customer');
 `;
 
-async function initDB() {
-  const client = new Client(getClientConfig());
+async function initDB(customClient = null) {
+  const client = customClient || new Client({
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  });
+
   try {
-    console.log('[Init] Connecting to database...');
-    await client.connect();
-    console.log('[Init] Connection successful. Running schema...');
+    if (!customClient) await client.connect();
     await client.query(schema);
-    console.log('[Init] Database initialization successful.');
     return true;
   } catch (error) {
     console.error('[Init] Error:', error.message);
     throw error;
   } finally {
-    try { await client.end(); } catch (e) {}
+    if (!customClient) {
+      try { await client.end(); } catch (e) {}
+    }
   }
 }
 
 if (require.main === module) {
-  initDB().catch(err => {
-    console.error('[Init] Fatal:', err.message);
-    process.exit(1);
-  });
+  initDB().catch(console.error);
 }
 
-module.exports = { initDB };
+module.exports = { initDB, schema };

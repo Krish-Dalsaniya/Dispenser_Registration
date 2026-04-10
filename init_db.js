@@ -1,15 +1,19 @@
 const { Client } = require('pg');
 require('dotenv').config();
 
-const client = new Client({
-  connectionString: process.env.DATABASE_URL,
-  host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 5432,
-  user: process.env.DB_USER || 'postgres',
-  password: String(process.env.DB_PASS || 'root'),
-  database: process.env.DB_NAME || 'dispenser_reg_db',
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-});
+// We move configuration to a helper to reuse it
+function getClientConfig() {
+  const isProduction = process.env.NODE_ENV === 'production';
+  return {
+    connectionString: process.env.DATABASE_URL,
+    host: process.env.DB_HOST || 'localhost',
+    port: process.env.DB_PORT || 5432,
+    user: process.env.DB_USER || 'postgres',
+    password: String(process.env.DB_PASS || 'root'),
+    database: process.env.DB_NAME || 'dispenser_registration',
+    ssl: isProduction ? { rejectUnauthorized: false } : false,
+  };
+}
 
 const schema = `
   -- 1. FIRMWARE TYPE
@@ -83,27 +87,28 @@ const schema = `
   CREATE INDEX IF NOT EXISTS idx_device_firmware ON device_registration(firmware_id);
   CREATE INDEX IF NOT EXISTS idx_device_customer ON device_registration(customer_id);
 
-  -- SEED DATA (Only if table is empty)
+  -- SEED DATA
   INSERT INTO firmware_type (type_name, description) 
-  SELECT 'GSM', 'GSM based firmware module' WHERE NOT EXISTS (SELECT 1 FROM firmware_type);
+  SELECT 'GSM', 'GSM based firmware module' WHERE NOT EXISTS (SELECT 1 FROM firmware_type WHERE type_name='GSM');
   
   INSERT INTO firmware_feature (feature_name, category) 
-  SELECT 'WiFi', 'Connectivity' WHERE NOT EXISTS (SELECT 1 FROM firmware_feature);
+  SELECT 'WiFi', 'Connectivity' WHERE NOT EXISTS (SELECT 1 FROM firmware_feature WHERE feature_name='WiFi');
   
   INSERT INTO customer (customer_name) 
-  SELECT 'Default Customer' WHERE NOT EXISTS (SELECT 1 FROM customer);
+  SELECT 'Default Customer' WHERE NOT EXISTS (SELECT 1 FROM customer WHERE customer_name='Default Customer');
 `;
 
 async function initDB() {
+  const client = new Client(getClientConfig());
   try {
-    // We use a internal connection to avoid pool issues during setup
+    console.log('[Init] Connecting to database...');
     await client.connect();
-    console.log('✅ Connected to database.');
+    console.log('[Init] Connection successful. Running schema...');
     await client.query(schema);
-    console.log('✅ Database initialization logic processed.');
+    console.log('[Init] Database initialization successful.');
     return true;
   } catch (error) {
-    console.error('❌ Error initializing database:', error.message);
+    console.error('[Init] Error:', error.message);
     throw error;
   } finally {
     try { await client.end(); } catch (e) {}
@@ -111,7 +116,10 @@ async function initDB() {
 }
 
 if (require.main === module) {
-  initDB();
+  initDB().catch(err => {
+    console.error('[Init] Fatal:', err.message);
+    process.exit(1);
+  });
 }
 
 module.exports = { initDB };

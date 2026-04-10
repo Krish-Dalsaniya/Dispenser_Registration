@@ -10,6 +10,8 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
 // Explicitly serve index.html for the root path with diagnostics
 app.get('/', (req, res) => {
   const indexPath = path.join(__dirname, 'public', 'index.html');

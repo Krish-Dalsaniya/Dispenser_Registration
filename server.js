@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const db = require('./database');
+const { initDB } = require('./init_db');
 require('dotenv').config();
 
 const app = express();
@@ -9,16 +10,37 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Explicitly serve index.html for the root path
+// Explicitly serve index.html for the root path with diagnostics
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  const indexPath = path.join(__dirname, 'public', 'index.html');
+  console.log(`[Diagnostic] Seeking index.html at: ${indexPath}`);
+  
+  res.sendFile(indexPath, (err) => {
+    if (err) {
+      console.error('❌ [Diagnostic] Error serving index.html:', err.message);
+      res.status(err.status || 500).send(`
+        <div style="font-family: sans-serif; padding: 20px;">
+          <h1 style="color: #e74c3c;">Server is Live, but Frontend is missing</h1>
+          <p><strong>Error:</strong> ${err.message}</p>
+          <p><strong>Path sought:</strong> ${indexPath}</p>
+          <hr>
+          <p>If you haven't initialized your database, visit <a href="/api/admin/setup-db">/api/admin/setup-db</a>.</p>
+        </div>
+      `);
+    }
+  });
 });
 
-// Simple health check for monitoring
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date() });
+// Admin Route to initialize DB for free
+app.get('/api/admin/setup-db', async (req, res) => {
+  try {
+    console.log('[Admin] Starting DB initialization...');
+    await initDB();
+    res.send('✅ Database initialized successfully! You can now <a href="/">go to the homepage</a>.');
+  } catch (err) {
+    console.error('❌ [Admin] DB Init Failed:', err.message);
+    res.status(500).send(`❌ DB Init Failed: ${err.message}`);
+  }
 });
 
 // ============================================================

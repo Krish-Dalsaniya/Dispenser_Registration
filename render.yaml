@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: dispenser-registration
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: dispenser-db
+          property: connectionString
+
+databases:
+  - name: dispenser-db
+    plan: free

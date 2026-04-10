@@ -12,27 +12,21 @@ const client = new Client({
 });
 
 const schema = `
-  -- ===============================
   -- 1. FIRMWARE TYPE
-  -- ===============================
   CREATE TABLE IF NOT EXISTS firmware_type (
       type_id SERIAL PRIMARY KEY,
       type_name VARCHAR(100) NOT NULL,
       description TEXT
   );
 
-  -- ===============================
   -- 2. FIRMWARE FEATURE
-  -- ===============================
   CREATE TABLE IF NOT EXISTS firmware_feature (
       feature_id SERIAL PRIMARY KEY,
       feature_name VARCHAR(100) NOT NULL,
       category VARCHAR(100)
   );
 
-  -- ===============================
-  -- 3. FIRMWARE BUNDLE (CORE)
-  -- ===============================
+  -- 3. FIRMWARE BUNDLE
   CREATE TABLE IF NOT EXISTS firmware_bundle (
       firmware_id SERIAL PRIMARY KEY,
       combination_hash VARCHAR(255) UNIQUE NOT NULL,
@@ -41,9 +35,7 @@ const schema = `
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   );
 
-  -- ===============================
   -- 4. BUNDLE <-> FEATURE MAP
-  -- ===============================
   CREATE TABLE IF NOT EXISTS bundle_feature_map (
       firmware_id INT NOT NULL,
       feature_id INT NOT NULL,
@@ -52,9 +44,7 @@ const schema = `
       FOREIGN KEY (feature_id) REFERENCES firmware_feature(feature_id) ON DELETE CASCADE
   );
 
-  -- ===============================
   -- 5. BUNDLE <-> TYPE MAP
-  -- ===============================
   CREATE TABLE IF NOT EXISTS bundle_type_map (
       firmware_id INT NOT NULL,
       type_id INT NOT NULL,
@@ -63,17 +53,13 @@ const schema = `
       FOREIGN KEY (type_id) REFERENCES firmware_type(type_id) ON DELETE CASCADE
   );
 
-  -- ===============================
   -- 6. CUSTOMER
-  -- ===============================
   CREATE TABLE IF NOT EXISTS customer (
       customer_id SERIAL PRIMARY KEY,
       customer_name VARCHAR(150) NOT NULL
   );
 
-  -- ===============================
-  -- 7. DEVICE REGISTRATION (MAIN)
-  -- ===============================
+  -- 7. DEVICE REGISTRATION
   CREATE TABLE IF NOT EXISTS device_registration (
       dispenser_id SERIAL PRIMARY KEY,
       firmware_id INT NOT NULL,
@@ -92,69 +78,35 @@ const schema = `
       FOREIGN KEY (customer_id) REFERENCES customer(customer_id) ON DELETE CASCADE
   );
 
-  -- ===============================
-  -- 8. INDEXES (PERFORMANCE)
-  -- ===============================
+  -- 8. INDEXES
   CREATE INDEX IF NOT EXISTS idx_bundle_hash ON firmware_bundle(combination_hash);
   CREATE INDEX IF NOT EXISTS idx_device_firmware ON device_registration(firmware_id);
   CREATE INDEX IF NOT EXISTS idx_device_customer ON device_registration(customer_id);
 
-  -- ===============================
-  -- SEED DATA (Only if tables are empty)
-  -- ===============================
-
-  -- Using subqueries to ensure we only seed if tables are empty
+  -- SEED DATA (Only if table is empty)
   INSERT INTO firmware_type (type_name, description) 
   SELECT 'GSM', 'GSM based firmware module' WHERE NOT EXISTS (SELECT 1 FROM firmware_type);
-  INSERT INTO firmware_type (type_name, description) 
-  SELECT 'Motherboard', 'Main motherboard firmware' WHERE NOT EXISTS (SELECT 1 FROM firmware_type WHERE type_name='Motherboard');
-  INSERT INTO firmware_type (type_name, description) 
-  SELECT 'Display', 'Display controller firmware' WHERE NOT EXISTS (SELECT 1 FROM firmware_type WHERE type_name='Display');
-
-  -- Firmware Features
+  
   INSERT INTO firmware_feature (feature_name, category) 
   SELECT 'WiFi', 'Connectivity' WHERE NOT EXISTS (SELECT 1 FROM firmware_feature);
-
-  -- Firmware Bundles
-    ('BASIC', 'v0.9.0-STD', FALSE);
-
-  -- Bundle-Feature Mappings
-  INSERT INTO bundle_feature_map (firmware_id, feature_id) VALUES
-    (1, 1), (1, 2),
-    (2, 1), (2, 2), (2, 3),
-    (3, 1), (3, 4), (3, 5);
-
-  -- Bundle-Type Mappings
-  INSERT INTO bundle_type_map (firmware_id, type_id) VALUES
-    (1, 1),
-    (2, 1), (2, 2),
-    (3, 2);
-
-  -- Customers
-  INSERT INTO customer (customer_name) VALUES
-    ('HP Petrol Pump'),
-    ('IOCL Mumbai'),
-    ('BPCL Delhi');
-
-  -- Sample Devices
-  INSERT INTO device_registration (firmware_id, customer_id, dispenser_name, pcb_id, pcb_name, mcu_id, latitude, longitude, location, fuel_type, is_iot) VALUES
-    (1, 1, 'Dispenser A1', 'PCB001', 'MainBoard-V1', 'ESP32-01', '19.0760', '72.8777', 'Mumbai', 'Petrol', TRUE),
-    (2, 2, 'Dispenser B2', 'PCB002', 'MainBoard-V2', 'ESP32-02', '28.7041', '77.1025', 'Delhi', 'Diesel', FALSE),
-    (3, 3, 'Dispenser C3', 'PCB003', 'MainBoard-V1', 'STM32-01', '13.0827', '80.2707', 'Chennai', 'Petrol', TRUE);
+  
+  INSERT INTO customer (customer_name) 
+  SELECT 'Default Customer' WHERE NOT EXISTS (SELECT 1 FROM customer);
 `;
 
 async function initDB() {
   try {
+    // We use a internal connection to avoid pool issues during setup
     await client.connect();
     console.log('✅ Connected to database.');
     await client.query(schema);
-    console.log('✅ All tables created successfully.');
-    console.log('✅ Seed data inserted.');
-    console.log('✅ Database initialization complete!');
+    console.log('✅ Database initialization logic processed.');
+    return true;
   } catch (error) {
     console.error('❌ Error initializing database:', error.message);
+    throw error;
   } finally {
-    await client.end();
+    try { await client.end(); } catch (e) {}
   }
 }
 
